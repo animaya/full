@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -11,13 +10,10 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-
 	"github.com/gorilla/mux"
 )
 
 const port = ":8080"
-
-var ctx context.Context
 
 func main() {
 	//registering mux router
@@ -25,7 +21,7 @@ func main() {
 
 	//configure db access
 	//root:password@(localhost:30306)/db_test?parseTime=true
-	//os.Getenv("mysql")
+
 	db, err := sql.Open("mysql", os.Getenv("mysql"))
 
 	if err == sql.ErrNoRows {
@@ -36,9 +32,9 @@ func main() {
 	}
 	defer db.Close()
 
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/", logging(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "full Home page")
-	})
+	}))
 
 	r.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.ParseFiles("form.html")
@@ -63,7 +59,7 @@ func main() {
 		fmt.Fprintf(w, "full Home page")
 	})
 
-	r.HandleFunc("/layout", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/layout", logging(func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.ParseFiles("layout.html")
 		if err != nil {
 			log.Fatal(err)
@@ -79,31 +75,15 @@ func main() {
 		}
 		tmpl.Execute(w, data)
 		fmt.Fprintf(w, "full Home page")
-	})
+	}))
 
-	// r.HandleFunc("/{id}", func(w http.ResponseWriter, r *http.Request) {
-	// 	var (
-	// 		id        int
-	// 		username  string
-	// 		password  string
-	// 		createdAt time.Time
-	// 	)
-	// 	query := `SELECT id, username, password, created_at FROM users WHERE id = ?`
-	// 	vars := mux.Vars(r)
-	// 	err := db.QueryRow(query, vars["id"]).Scan(&id, &username, &password, &createdAt)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	fmt.Fprintf(w, "the id: %v, %v, %v, %v\n", id, username, password, createdAt)
-	// })
-
-	r.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/user", logging(func(w http.ResponseWriter, r *http.Request) {
 		result, err := manyRows(db)
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Fprintf(w, "%v", result)
-	})
+	}))
 
 	fmt.Println("Starting server")
 	err = http.ListenAndServe(port, r)
@@ -140,6 +120,13 @@ type City struct {
 	Id         int
 	Name       string
 	Population int
+}
+
+func logging(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Println(r.URL.Path)
+		f(w, r)
+	}
 }
 
 func manyRows(db *sql.DB) (usr []City, err error) {
