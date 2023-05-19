@@ -40,6 +40,29 @@ func main() {
 		fmt.Fprintf(w, "full Home page")
 	})
 
+	r.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("form.html")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if r.Method != http.MethodPost {
+			tmpl.Execute(w, nil)
+			return
+		}
+
+		details := ContactDetail{
+			Email:   r.FormValue("email"),
+			Subject: r.FormValue("subject"),
+			Message: r.FormValue("message"),
+		}
+
+		_ = details
+
+		tmpl.Execute(w, struct{ Success bool }{true})
+		fmt.Fprintf(w, "full Home page")
+	})
+
 	r.HandleFunc("/layout", func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.ParseFiles("layout.html")
 		if err != nil {
@@ -88,6 +111,12 @@ func main() {
 		fmt.Println("Server started on port: ", port)
 	}
 
+}
+
+type ContactDetail struct {
+	Email   string
+	Subject string
+	Message string
 }
 
 type Todo struct {
