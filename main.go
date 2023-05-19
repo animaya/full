@@ -36,7 +36,7 @@ func main() {
 		fmt.Fprintf(w, "full Home page")
 	}))
 
-	r.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/form", Chain(func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.ParseFiles("form.html")
 		if err != nil {
 			log.Fatal(err)
@@ -57,7 +57,7 @@ func main() {
 
 		tmpl.Execute(w, struct{ Success bool }{true})
 		fmt.Fprintf(w, "full Home page")
-	})
+	}, Method("GET"), Logging()))
 
 	r.HandleFunc("/layout", logging(func(w http.ResponseWriter, r *http.Request) {
 		tmpl, err := template.ParseFiles("layout.html")
@@ -120,6 +120,39 @@ type City struct {
 	Id         int
 	Name       string
 	Population int
+}
+
+type Middleware func(http.HandlerFunc) http.HandlerFunc
+
+func Logging() Middleware {
+	return func(f http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			defer func() { log.Println(r.URL.Path, time.Since(start)) }()
+			f(w, r)
+		}
+	}
+}
+
+func Method(m string) Middleware {
+	return func(f http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+
+			if r.Method != m {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
+			}
+
+			f(w, r)
+		}
+	}
+}
+
+func Chain(f http.HandlerFunc, middlwares ...Middleware) http.HandlerFunc {
+	for _, m := range middlwares {
+		f = m(f)
+	}
+	return f
 }
 
 func logging(f http.HandlerFunc) http.HandlerFunc {
