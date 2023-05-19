@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -36,6 +37,24 @@ func main() {
 	defer db.Close()
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "full Home page")
+	})
+
+	r.HandleFunc("/layout", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.ParseFiles("layout.html")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		data := TodoPageData{
+			PageTitle: "My TODO List",
+			Todos: []Todo{
+				{Title: "Task1", Done: false},
+				{Title: "Task2", Done: true},
+				{Title: "Task3", Done: true},
+			},
+		}
+		tmpl.Execute(w, data)
 		fmt.Fprintf(w, "full Home page")
 	})
 
@@ -69,6 +88,16 @@ func main() {
 		fmt.Println("Server started on port: ", port)
 	}
 
+}
+
+type Todo struct {
+	Title string
+	Done  bool
+}
+
+type TodoPageData struct {
+	PageTitle string
+	Todos     []Todo
 }
 
 type User struct {
