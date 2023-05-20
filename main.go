@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const port = ":8080"
@@ -46,6 +47,23 @@ func main() {
 
 	r.HandleFunc("/", logging(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "full Home page")
+	}))
+
+	r.HandleFunc("/hash/{password}", logging(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		password := vars["password"]
+		hash, _ := HashPassword(password) // ignore error for the sake of simplicity
+		fmt.Fprintf(w, "hashing password\n")
+
+		fmt.Fprintf(w, password+"\n")
+		fmt.Fprintf(w, hash+"\n")
+
+		match := CheckPasswordHash(password, hash)
+		fmt.Fprintf(w, "checking hash\n")
+		if match {
+			fmt.Fprintf(w, "true")
+		}
+
 	}))
 
 	r.HandleFunc("/echo", func(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +202,16 @@ type City struct {
 }
 
 type Middleware func(http.HandlerFunc) http.HandlerFunc
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
 
 func secret(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "cookie-name")
