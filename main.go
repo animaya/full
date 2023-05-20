@@ -2,18 +2,24 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"text/template"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 const port = ":8080"
+
+var (
+	key   = []byte("super-secret-key")
+	store = sessions.NewCookieStore(key)
+)
 
 func main() {
 	//registering mux router
@@ -36,61 +42,87 @@ func main() {
 		fmt.Fprintf(w, "full Home page")
 	}))
 
-	r.HandleFunc("/form", Chain(func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("form.html")
-		if err != nil {
-			log.Fatal(err)
-		}
+	// r.HandleFunc("/form", Chain(func(w http.ResponseWriter, r *http.Request) {
+	// 	tmpl, err := template.ParseFiles("form.html")
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 
-		if r.Method != http.MethodPost {
-			tmpl.Execute(w, nil)
-			return
-		}
+	// 	if r.Method != http.MethodPost {
+	// 		tmpl.Execute(w, nil)
+	// 		return
+	// 	}
 
-		details := ContactDetail{
-			Email:   r.FormValue("email"),
-			Subject: r.FormValue("subject"),
-			Message: r.FormValue("message"),
-		}
+	// 	details := ContactDetail{
+	// 		Email:   r.FormValue("email"),
+	// 		Subject: r.FormValue("subject"),
+	// 		Message: r.FormValue("message"),
+	// 	}
 
-		_ = details
+	// 	_ = details
 
-		tmpl.Execute(w, struct{ Success bool }{true})
-		fmt.Fprintf(w, "full Home page")
-	}, Method("GET"), Logging()))
+	// 	tmpl.Execute(w, struct{ Success bool }{true})
+	// 	fmt.Fprintf(w, "full Home page")
+	// }, Method("GET"), Logging()))
 
-	r.HandleFunc("/layout", logging(func(w http.ResponseWriter, r *http.Request) {
-		tmpl, err := template.ParseFiles("layout.html")
-		if err != nil {
-			log.Fatal(err)
-		}
+	// r.HandleFunc("/layout", logging(func(w http.ResponseWriter, r *http.Request) {
+	// 	tmpl, err := template.ParseFiles("layout.html")
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 
-		data := TodoPageData{
-			PageTitle: "My TODO List",
-			Todos: []Todo{
-				{Title: "Task1", Done: false},
-				{Title: "Task2", Done: true},
-				{Title: "Task3", Done: true},
-			},
-		}
-		tmpl.Execute(w, data)
-		fmt.Fprintf(w, "full Home page")
-	}))
+	// 	data := TodoPageData{
+	// 		PageTitle: "My TODO List",
+	// 		Todos: []Todo{
+	// 			{Title: "Task1", Done: false},
+	// 			{Title: "Task2", Done: true},
+	// 			{Title: "Task3", Done: true},
+	// 		},
+	// 	}
+	// 	tmpl.Execute(w, data)
+	// 	fmt.Fprintf(w, "full Home page")
+	// }))
 
-	r.HandleFunc("/user", logging(func(w http.ResponseWriter, r *http.Request) {
-		result, err := manyRows(db)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Fprintf(w, "%v", result)
-	}))
+	// r.HandleFunc("/user", logging(func(w http.ResponseWriter, r *http.Request) {
+	// 	result, err := manyRows(db)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Fprintf(w, "%v", result)
+	// }))
 
 	fmt.Println("Starting server")
+
+	// r.HandleFunc("/secret", secret)
+	// r.HandleFunc("/login", login)
+	// r.HandleFunc("/logout", logout)
+
+	r.HandleFunc("/decode", func(w http.ResponseWriter, r *http.Request) {
+		var user Usero
+		json.NewDecoder(r.Body).Decode(&user)
+		fmt.Fprintf(w, "%s %s is %d years old!", user.Firstname, user.Lastname, user.Age)
+	})
+
+	r.HandleFunc("/encode", func(w http.ResponseWriter, r *http.Request) {
+		peter := Usero{
+			Firstname: "Peter",
+			Lastname:  "Abramov",
+			Age:       32,
+		}
+		json.NewEncoder(w).Encode(peter)
+	})
+
 	err = http.ListenAndServe(port, r)
 	if err != nil {
 		fmt.Println("Server started on port: ", port)
 	}
 
+}
+
+type Usero struct {
+	Firstname string `json:"firstname"`
+	Lastname  string `json:"lastname"`
+	Age       int    `json:"age"`
 }
 
 type ContactDetail struct {
@@ -123,6 +155,29 @@ type City struct {
 }
 
 type Middleware func(http.HandlerFunc) http.HandlerFunc
+
+func secret(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "cookie-name")
+
+	if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	fmt.Fprintln(w, "the cake is a lie")
+}
+
+func login(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "cookie-name")
+	session.Values["authenticated"] = true
+	session.Save(r, w)
+}
+
+func logout(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "cookie-name")
+	session.Values["authenticated"] = false
+	session.Save(r, w)
+}
 
 func Logging() Middleware {
 	return func(f http.HandlerFunc) http.HandlerFunc {
